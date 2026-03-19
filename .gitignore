@@ -1,6 +1,5 @@
 # Конфиги с паролями
-winrm/config.yaml
-openssh-deploy/config.yaml
+**/config.yaml
 
 # Логи
 *.log
