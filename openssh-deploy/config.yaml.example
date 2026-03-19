@@ -1,0 +1,20 @@
+# Конфиг Deploy-OpenSSH.ps1
+# Скопируй в config.yaml и заполни реальными значениями
+
+psexec_path: C:\path\to\PsExec.exe
+inventory_path: C:\path\to\inventory.yaml
+
+# Учётные данные для PsExec
+credentials:
+  username: DOMAIN\username
+  password: PUT_PASSWORD_HERE
+
+# Таймаут проверки SSH (секунды)
+ssh_test_timeout: 5
+
+# Настройки sshd
+sshd:
+  port: 22
+  password_authentication: yes
+  pubkey_authentication: yes
+  default_shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe

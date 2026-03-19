@@ -1,0 +1,13 @@
+# Конфиг Deploy-WinRM.ps1
+# Скопируй в config.yaml и заполни реальными значениями
+
+psexec_path: C:\path\to\PsExec.exe
+inventory_path: C:\path\to\inventory.yaml
+
+# Учётные данные для PsExec
+credentials:
+  username: DOMAIN\username
+  password: PUT_PASSWORD_HERE
+
+# Таймаут проверки WinRM (секунды)
+winrm_test_timeout: 5
