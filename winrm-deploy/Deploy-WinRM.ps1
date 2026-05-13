@@ -96,50 +96,90 @@ function Parse-SimpleYaml {
     return $root
 }
 
+function Find-GroupByName {
+    <#
+    .SYNOPSIS
+        Рекурсивно ищет в дереве inventory группу с указанным именем.
+        Возвращает hashtable группы или $null.
+    #>
+    param([hashtable]$Node, [string]$Name)
+
+    if (-not $Node) { return $null }
+
+    if ($Node.ContainsKey($Name) -and $Node[$Name] -is [hashtable]) {
+        return $Node[$Name]
+    }
+
+    foreach ($key in $Node.Keys) {
+        $val = $Node[$key]
+        if ($val -is [hashtable]) {
+            # Спускаемся в children, если есть
+            if ($val['children'] -is [hashtable]) {
+                $found = Find-GroupByName -Node $val['children'] -Name $Name
+                if ($found) { return $found }
+            }
+        }
+    }
+
+    return $null
+}
+
+function Collect-HostsRecursive {
+    <#
+    .SYNOPSIS
+        Рекурсивно собирает все хосты из группы и её потомков.
+    #>
+    param([hashtable]$Group, [System.Collections.ArrayList]$Acc)
+
+    if (-not $Group) { return }
+
+    if ($Group['hosts'] -is [hashtable]) {
+        foreach ($hostName in $Group['hosts'].Keys) {
+            $hostData = $Group['hosts'][$hostName]
+            if ($hostData -is [hashtable] -and $hostData['ansible_host']) {
+                [void]$Acc.Add(@{
+                    Name = $hostName
+                    IP   = $hostData['ansible_host']
+                })
+            }
+        }
+    }
+
+    if ($Group['children'] -is [hashtable]) {
+        foreach ($childName in $Group['children'].Keys) {
+            $child = $Group['children'][$childName]
+            if ($child -is [hashtable]) {
+                Collect-HostsRecursive -Group $child -Acc $Acc
+            }
+        }
+    }
+}
+
 function Get-WindowsHosts {
     <#
     .SYNOPSIS
         Извлекает список Windows-хостов из inventory.yaml.
         Возвращает массив @{ Name; IP }.
+        Ищет группу 'windows' где угодно в дереве и рекурсивно собирает все хосты.
     #>
     param([hashtable]$Inventory)
 
-    $hosts = @()
-    $windowsGroup = $Inventory['all']['children']['windows']
-    if (-not $windowsGroup) { return $hosts }
+    $acc = [System.Collections.ArrayList]::new()
 
-    # Обходим children (windows_servers, windows_workstations)
-    if ($windowsGroup['children']) {
-        foreach ($subGroupName in $windowsGroup['children'].Keys) {
-            $subGroup = $windowsGroup['children'][$subGroupName]
-            if ($subGroup['hosts']) {
-                foreach ($hostName in $subGroup['hosts'].Keys) {
-                    $hostData = $subGroup['hosts'][$hostName]
-                    if ($hostData -is [hashtable] -and $hostData['ansible_host']) {
-                        $hosts += @{
-                            Name = $hostName
-                            IP   = $hostData['ansible_host']
-                        }
-                    }
-                }
-            }
-        }
+    $root = $Inventory['all']
+    if (-not $root) { return @() }
+
+    # Стартуем поиск с children корневой группы all
+    $windowsGroup = $null
+    if ($root['children'] -is [hashtable]) {
+        $windowsGroup = Find-GroupByName -Node $root['children'] -Name 'windows'
     }
 
-    # Прямые хосты в windows.hosts
-    if ($windowsGroup['hosts'] -and $windowsGroup['hosts'] -is [hashtable]) {
-        foreach ($hostName in $windowsGroup['hosts'].Keys) {
-            $hostData = $windowsGroup['hosts'][$hostName]
-            if ($hostData -is [hashtable] -and $hostData['ansible_host']) {
-                $hosts += @{
-                    Name = $hostName
-                    IP   = $hostData['ansible_host']
-                }
-            }
-        }
-    }
+    if (-not $windowsGroup) { return @() }
 
-    return $hosts
+    Collect-HostsRecursive -Group $windowsGroup -Acc $acc
+
+    return @($acc)
 }
 
 function Test-WinRM {
