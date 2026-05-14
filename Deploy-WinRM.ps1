@@ -9,17 +9,22 @@
     Только показать список хостов и статусы, без изменений.
 .PARAMETER HostFilter
     Фильтр по имени хоста или IP (поддерживает wildcard *).
+.PARAMETER HostsFile
+    Путь к файлу со списком хостов (по одному имени/IP на строку,
+    '#' — комментарий). Если задан — перекрывает HostFilter.
 .PARAMETER ConfigPath
     Путь к config.yaml. По умолчанию — рядом со скриптом.
 .EXAMPLE
     .\Deploy-WinRM.ps1 -DryRun
     .\Deploy-WinRM.ps1 -HostFilter "buh01-ws"
+    .\Deploy-WinRM.ps1 -HostsFile .\retry-hosts.txt
     .\Deploy-WinRM.ps1
 #>
 
 param(
     [switch]$DryRun,
     [string]$HostFilter = "*",
+    [string]$HostsFile,
     [string]$ConfigPath
 )
 
@@ -332,16 +337,37 @@ Write-Log "Чтение inventory: $inventoryPath"
 $inventory = Parse-SimpleYaml -Path $inventoryPath
 $allHosts = Get-WindowsHosts -Inventory $inventory
 
-# Фильтрация
-$filteredHosts = $allHosts | Where-Object {
-    $_.Name -like $HostFilter -or $_.IP -like $HostFilter
+# Фильтрация: HostsFile (если задан) приоритетнее HostFilter.
+if ($HostsFile) {
+    if (-not (Test-Path $HostsFile)) {
+        Write-Log "HostsFile не найден: $HostsFile" "ERROR"
+        exit 1
+    }
+    $wanted = @{}
+    foreach ($line in Get-Content $HostsFile) {
+        $line = $line.Trim()
+        if (-not $line -or $line.StartsWith('#')) { continue }
+        $wanted[$line.ToLower()] = $true
+    }
+    Write-Log "HostsFile: $HostsFile (записей: $($wanted.Count))"
+    $filteredHosts = $allHosts | Where-Object {
+        $wanted.ContainsKey($_.Name.ToLower()) -or $wanted.ContainsKey($_.IP.ToLower())
+    }
+} else {
+    $filteredHosts = $allHosts | Where-Object {
+        $_.Name -like $HostFilter -or $_.IP -like $HostFilter
+    }
 }
 
 # Сортировка по IP
 $filteredHosts = $filteredHosts | Sort-Object { [version]($_.IP -replace '(\d+)\.(\d+)\.(\d+)\.(\d+)', '$1.$2.$3.$4') }
 
 Write-Log "Всего Windows-хостов: $($allHosts.Count)"
-Write-Log "После фильтра '$HostFilter': $($filteredHosts.Count)"
+if ($HostsFile) {
+    Write-Log "После HostsFile: $($filteredHosts.Count)"
+} else {
+    Write-Log "После фильтра '$HostFilter': $($filteredHosts.Count)"
+}
 
 if ($filteredHosts.Count -eq 0) {
     Write-Log "Нет хостов для обработки" "WARN"

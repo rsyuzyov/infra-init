@@ -1,0 +1,63 @@
+# Единый конфиг для всех Deploy-*.ps1 скриптов в этом каталоге.
+# Скопируй в config.yaml и заполни реальными значениями.
+
+# ============================================================
+# Общие
+# ============================================================
+
+# Inventory от net-conf-gen
+inventory_path: C:\path\to\inventory.yaml
+
+# PsExec (нужен для Deploy-WinRM и Deploy-OpenSSH)
+psexec_path: .\tools\PsExec.exe
+
+# OpenSSH MSI fallback (для старых Windows без Capability API в Deploy-OpenSSH).
+# Если файл не найден — MSI-фоллбек отключается.
+openssh_msi_path: .\tools\OpenSSH-Win64.msi
+
+# Общая учётка для PsExec и SSH (должна быть админом на целевых хостах)
+credentials:
+  username: DOMAIN\username
+  password: PUT_PASSWORD_HERE   # если PUT_PASSWORD_HERE — спросит интерактивно
+
+# ============================================================
+# Deploy-WinRM
+# ============================================================
+
+# Таймаут проверки WinRM (сек)
+winrm_test_timeout: 5
+
+# ============================================================
+# Deploy-OpenSSH
+# ============================================================
+
+# Таймаут проверки SSH (сек) после установки
+ssh_test_timeout: 5
+
+# Что записывать в sshd_config на удалённых хостах
+sshd:
+  port: 22
+  password_authentication: yes
+  pubkey_authentication: yes
+  default_shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+
+# ============================================================
+# Deploy-SshKey
+# ============================================================
+
+# Публичный ключ для прописывания
+public_key_path: C:\Users\User\.ssh\id_ed25519.pub
+
+# Приватный ключ для post-check (если не задан — выводится из public_key_path
+# отрезанием .pub). Если файл не найден — post-check пропускается.
+private_key_path:
+
+# Имя юзера на целевом хосте, которому прописать ключ.
+# Если пусто — берётся credentials.username.
+target_user:
+
+# Порт SSH для подключения при деплое ключа
+ssh_port: 22
+
+# Таймаут подключения по SSH (сек)
+ssh_timeout: 5
