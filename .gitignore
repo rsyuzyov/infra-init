@@ -2,7 +2,9 @@
 **/config.yaml*
 !**/config.yaml.example
 
-# Логи
+# Логи и вывод
+output/
+log/
 *.log
 
 # Временные файлы (списки хостов для retry, дампы, заметки и т.п.)
