@@ -396,7 +396,8 @@ Match Group administrators
         -RedirectStandardOutput "$env:TEMP\psexec_ssh_out.txt" `
         -RedirectStandardError  "$env:TEMP\psexec_ssh_err.txt"
     $stdout = if (Test-Path "$env:TEMP\psexec_ssh_out.txt") { Get-Content "$env:TEMP\psexec_ssh_out.txt" -Raw } else { '' }
-    $stderr = if (Test-Path "$env:TEMP\psexec_ssh_err.txt") { Get-Content "$env:TEMP\psexec_ssh_err.txt" -Raw } else { '' }
+    # PsExec пишет stderr в OEM (cp866) — читаем в той же кодировке, иначе кракозябры в логе
+    $stderr = if (Test-Path "$env:TEMP\psexec_ssh_err.txt") { Get-Content "$env:TEMP\psexec_ssh_err.txt" -Raw -Encoding Oem } else { '' }
 
     $result = @{ status = 'FAIL'; category = ''; message = ''; exit_code = $proc.ExitCode }
     if ($proc.ExitCode -eq 0)      { $result.status = 'OK';              $result.category = 'INSTALLED_VIA_PSEXEC';   $result.message = 'PsExec configured sshd' }
@@ -647,9 +648,15 @@ foreach ($h in $filteredHosts) {
         $stats.NO_CAPABILITY_API++
     } elseif ($r.transport -like 'winrm*' -and $r.status -ne 'OK') {
         Write-Log "  [ WINRM_FAIL ] $displayName — $($r.message)" "ERROR"
+        if (Test-AccessDenied -Message $r.message) {
+            Write-AccessDeniedHint -ComputerName $h.IP
+        }
         $stats.WINRM_FAIL++
     } elseif ($r.transport -eq 'psexec') {
         Write-Log "  [ PSEXEC_FAIL ] $displayName — $($r.message)" "ERROR"
+        if (Test-AccessDenied -Message $r.message -ExitCode $r.exit_code) {
+            Write-AccessDeniedHint -ComputerName $h.IP
+        }
         $stats.PSEXEC_FAIL++
     } else {
         Write-Log "  [ FAIL ] $displayName — $($r.message)" "ERROR"

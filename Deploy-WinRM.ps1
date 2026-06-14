@@ -90,7 +90,8 @@ try {
         -RedirectStandardError "$env:TEMP\psexec_err.txt"
 
     $stdout = if (Test-Path "$env:TEMP\psexec_out.txt") { Get-Content "$env:TEMP\psexec_out.txt" -Raw } else { "" }
-    $stderr = if (Test-Path "$env:TEMP\psexec_err.txt") { Get-Content "$env:TEMP\psexec_err.txt" -Raw } else { "" }
+    # PsExec пишет stderr в OEM (cp866) — читаем в той же кодировке, иначе кракозябры в логе
+    $stderr = if (Test-Path "$env:TEMP\psexec_err.txt") { Get-Content "$env:TEMP\psexec_err.txt" -Raw -Encoding Oem } else { "" }
 
     return @{ ExitCode = $proc.ExitCode; StdOut = $stdout; StdErr = $stderr }
 }
@@ -257,6 +258,9 @@ foreach ($h in $filteredHosts) {
         $state.exit_code = $r.ExitCode
         if ($r.ExitCode -ne 0) {
             Write-Log "  [ PSEXEC_FAIL ] $displayName — exitcode=$($r.ExitCode): $($r.StdErr)" "ERROR"
+            if (Test-AccessDenied -Message $r.StdErr -ExitCode $r.ExitCode) {
+                Write-AccessDeniedHint -ComputerName $h.IP
+            }
             $state.status = 'PSEXEC_FAIL'; $state.category = 'PSEXEC_ERROR'
             $state.message = $r.StdErr.Trim()
             $stats.PSEXEC_FAIL++

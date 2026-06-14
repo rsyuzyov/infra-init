@@ -314,6 +314,41 @@ function Test-TcpPort {
 }
 
 # ============================================================
+# Remote access-denied (UAC remote token filtering) helpers
+# ============================================================
+
+function Test-AccessDenied {
+    # $true, если вывод транспорта означает «отказано в доступе».
+    # Подходит и для PsExec (stderr), и для WinRM (текст исключения).
+    # Частая причина под локальной учёткой-админом — UAC remote token filtering:
+    # удалённый вход даёт урезанный токен без админ-прав.
+    # ВАЖНО: ловим именно отказ доступа, а не общий префикс PsExec "Couldn't access <host>:" —
+    # он же появляется при закрытом 445 ("сетевой путь не найден") и неверном пароле
+    # ("logon failure"), где подсказка про LocalAccountTokenFilterPolicy неуместна.
+    # Признаки именно access denied: код 5 (ERROR_ACCESS_DENIED) и текст ошибки (EN/RU).
+    # RU-текст из PsExec читается корректно, т.к. stderr читается с -Encoding Oem (см. вызывающий код).
+    param([string]$Message, [int]$ExitCode = 0)
+    if ($ExitCode -eq 5) { return $true }
+    if (-not $Message) { return $false }
+    return ($Message -match 'Access is denied' -or
+            $Message -match 'Отказано в доступе')
+}
+
+function Write-AccessDeniedHint {
+    # Справочная подсказка при отказе доступа: как разрешить полный токен
+    # локальным админам на целевом хосте (UAC remote token filtering).
+    param([string]$ComputerName)
+    Write-Log "  ─── Отказано в доступе — вероятно, UAC remote token filtering ───" "WARN"
+    Write-Log "  Логин/сессия проходят, но локальный админ при удалённом входе получает" "WARN"
+    Write-Log '  урезанный токен: PsExec не достучится до admin$/SCM, а команды внутри' "WARN"
+    Write-Log "  WinRM-сессии падают с «Отказано в доступе». Лечится на ЦЕЛЕВОМ хосте ($ComputerName):" "WARN"
+    Write-Log '    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f' "WARN"
+    Write-Log "  Применяется сразу, перезагрузка не нужна. Не нужно для доменных учёток" "WARN"
+    Write-Log "  и встроенного Administrator." "WARN"
+    Write-Log "  ─────────────────────────────────────────────────────────────────────" "WARN"
+}
+
+# ============================================================
 # State machine (output/<domain>/<transport>/<host>.json)
 # ============================================================
 
